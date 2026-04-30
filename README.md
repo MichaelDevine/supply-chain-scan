@@ -35,6 +35,8 @@ The OpenSSF feed is cloned via a shallow `git clone --depth 1 --filter=blob:none
 
 | Campaign | Ecosystem | Date | Packages |
 |---|---|---|---|
+| **S1ngularity / Nx** | npm | August 26 2025 | `nx`, `@nx/devkit`, `@nx/js`, `@nx/workspace`, `@nx/node`, `@nx/eslint`, `@nx/key`, `@nx/enterprise-cloud` |
+| **Shai-Hulud / September npm compromise** | npm | September 2025 | Curated high-signal set including `chalk`, `debug`, `@ctrl/tinycolor`, `@crowdstrike/*`, `ngx-bootstrap`, `ngx-toastr`, `ng2-file-upload` |
 | **CanisterWorm** (TeamPCP) | npm | March 20–23 2026 | `@emilgroup/*` (30+ packages), `@teale.io/eslint-config` |
 | **CanisterSprawl** (TeamPCP) | npm | April 8–23 2026 | `@automagik/genie`, `pgserve`, `@fairwords/*`, `@openwebconcept/*` |
 | **Axios RAT** (TeamPCP) | npm | March 31 2026 | `axios` 1.14.1 / 0.30.4, `plain-crypto-js` |
@@ -123,10 +125,10 @@ Run with **`sudo`** for full coverage of all user home directories, Docker, and 
 ## What Each Script Checks
 
 ### npm Packages
-Walks the filesystem (all user profiles, common dev directories) for `package.json` files up to 12 directories deep, matching every known malicious package name and exact bad version. Also scans `package-lock.json` and `yarn.lock` files for injected malicious dependencies (e.g. `plain-crypto-js` from the Axios attack).
+Walks the user's home parent and common package/tool locations on the main OS drive for `package.json` files up to 12 directories deep, matching every known malicious package name and exact bad version. On Linux, a user such as `/home/mike` causes `/home` to be scanned, plus common root-filesystem package locations such as `/usr`, `/usr/local`, `/opt`, `/srv`, `/app`, `/workspace`, `/var/www`, and `/var/lib`, while staying on each selected filesystem. On Windows, the scanner covers the system drive's user, Program Files, ProgramData, and common dev/tool roots such as `C:\src`, `C:\dev`, `C:\workspace`, `C:\tools`, and `C:\opt`. It also scans `package-lock.json` and `yarn.lock` files for injected malicious dependencies (e.g. `plain-crypto-js` from the Axios attack).
 
 ### PyPI Packages
-Queries `pip show` for each target package and scans `.dist-info` directories across all Python installations (system Python, Anaconda, miniconda, venvs). On Ubuntu this includes system-wide and per-user site-packages.
+Builds a normalized in-memory map of malicious PyPI package names and bad versions, then inventories installed Python packages once via `pip list --format=freeze` and discovered `.dist-info` metadata. Each installed package is checked against the map, so local venvs and Python installs are scanned without looping the full IOC list for every environment.
 
 ### OSV Bulk Feed (npm + PyPI)
 Downloads the full `all.zip` for the `npm` and `PyPI` ecosystems from the OSV data dump — one HTTP request per ecosystem. All filtering and parsing is done locally in Python using the standard `zipfile` module, with no further network calls. Records are flagged as malicious if their ID starts with `MAL-`, their `database_specific.malicious` field is `true`, or their summary contains keywords such as "malicious", "malware", "backdoor", or "supply chain". Progress is printed every 1,000 records. The entire OSV phase typically completes in under three minutes on a typical broadband connection.
@@ -137,9 +139,9 @@ Downloads the full `all.zip` for the `npm` and `PyPI` ecosystems from the OSV da
 - For every **running** container: checks IOC files (`/tmp/pglog`, `/tmp/.pg_state`, `sysmon.py`), checks for the `pgmon` worm persistence service, and scans npm and PyPI packages inside the container's filesystem via `docker exec`
 
 ### IOC Artefacts
-- **Files:** `/tmp/pglog`, `/tmp/.pg_state`, `sysmon.py` (LiteLLM worm), `litellm_init.pth`
+- **Files:** `/tmp/pglog`, `/tmp/.pg_state`, `/tmp/inventory.txt` (S1ngularity/Nx), `sysmon.py` (LiteLLM worm), `litellm_init.pth`
 - **Scripts:** `check-env.js`, `deploy.js`, `env-compat.cjs`, `public.pem`
-- **Strings:** `cjn37-uyaaa-aaaac-qgnva-cai`, `telemetry.api-monitor`, `pgmon`, `audit.checkmarx.cx`, `plain-crypto-js`, and others
+- **Strings:** `cjn37-uyaaa-aaaac-qgnva-cai`, `telemetry.api-monitor`, `pgmon`, `audit.checkmarx.cx`, `plain-crypto-js`, `s1ngularity-repository`, `Shai-Hulud`, and others. Candidate text files are inventoried once per root, de-duplicated, capped at 2 MB per file, and noisy build/cache directories are skipped before the combined IOC regex and ICP URL regex are checked.
 - **SHA-256 hashes:** known malicious `env-compat.cjs` and `public.pem` files
 
 ### Worm Persistence (Ubuntu)

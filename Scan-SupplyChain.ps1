@@ -193,6 +193,80 @@ foreach ($ioc in $HardcodedIOCs) {
     Merge-Pkg $ioc.E $ioc.N $ioc.V
 }
 
+# ── S1ngularity / Nx (August 26 2025) ───────────────────────────────────────
+# Malicious npm releases used postinstall hooks to collect secrets and publish
+# them into attacker-created GitHub repos named with "s1ngularity-repository".
+Merge-Pkg "npm" "nx" @("21.5.0","20.9.0","20.10.0","21.6.0","20.11.0","21.7.0","21.8.0","20.12.0")
+foreach ($pkg in @("@nx/devkit","@nx/js","@nx/workspace","@nx/node")) {
+    Merge-Pkg "npm" $pkg @("21.5.0","20.9.0")
+}
+Merge-Pkg "npm" "@nx/eslint" @("21.5.0")
+Merge-Pkg "npm" "@nx/key" @("3.2.0")
+Merge-Pkg "npm" "@nx/enterprise-cloud" @("3.2.0")
+
+# ── September 2025 npm crypto-theft + Shai-Hulud worm wave ──────────────────
+# Curated high-signal subset of the CISA/Mend/Socket-reported npm incidents:
+# massively downloaded packages, CrowdStrike packages, @ctrl/tinycolor family,
+# and commonly observed Angular / NativeScript victims. Live feeds cover the
+# long tail; this keeps offline mode useful without embedding a giant feed dump.
+$HardcodedNpmVersionLines = @'
+ansi-styles|6.2.2
+backslash|0.2.1
+chalk|5.6.1
+chalk-template|1.1.1
+color-convert|3.1.1
+color-name|2.0.1
+color-string|2.1.1
+debug|4.4.2
+error-ex|1.3.3
+has-ansi|6.0.1
+is-arrayish|0.3.3
+proto-tinker-wc|0.1.87
+simple-swizzle|0.2.3
+slice-ansi|7.1.1
+strip-ansi|7.1.1
+supports-color|10.2.1
+supports-hyperlinks|4.1.1
+wrap-ansi|9.0.1
+@ahmedhfarag/ngx-perfect-scrollbar|20.0.20
+@ahmedhfarag/ngx-virtual-scroller|4.0.4
+@crowdstrike/commitlint|8.1.1 8.1.2
+@crowdstrike/falcon-shoelace|0.4.1 0.4.2
+@crowdstrike/foundry-js|0.19.1 0.19.2
+@crowdstrike/glide-core|0.34.2 0.34.3
+@crowdstrike/logscale-dashboard|1.205.1 1.205.2
+@crowdstrike/logscale-file-editor|1.205.1 1.205.2
+@crowdstrike/logscale-parser-edit|1.205.1 1.205.2
+@crowdstrike/logscale-search|1.205.1 1.205.2
+@crowdstrike/tailwind-toucan-base|5.0.1 5.0.2
+@ctrl/deluge|1.2.0 7.2.1 7.2.2
+@ctrl/golang-template|1.4.2 1.4.3
+@ctrl/magnet-link|4.0.3 4.0.4
+@ctrl/ngx-codemirror|7.0.1 7.0.2
+@ctrl/ngx-csv|6.0.1 6.0.2
+@ctrl/ngx-emoji-mart|9.2.1 9.2.2
+@ctrl/ngx-rightclick|4.0.1 4.0.2
+@ctrl/qbittorrent|9.7.1 9.7.2
+@ctrl/react-adsense|2.0.1 2.0.2
+@ctrl/shared-torrent|6.3.1 6.3.2
+@ctrl/tinycolor|4.1.1 4.1.2
+@ctrl/torrent-file|4.1.1 4.1.2
+@ctrl/transmission|7.3.1
+@ctrl/ts-base32|4.0.1 4.0.2
+angulartics2|14.1.1 14.1.2
+ng2-file-upload|7.0.2 7.0.3 8.0.1 8.0.2 8.0.3 9.0.1
+ngx-bootstrap|18.1.4 19.0.3 19.0.4 20.0.3 20.0.4 20.0.5 20.0.6
+ngx-toastr|19.0.1 19.0.2
+'@
+foreach ($line in ($HardcodedNpmVersionLines -split "`n")) {
+    $trimmedLine = $line.Trim()
+    if (-not $trimmedLine -or $trimmedLine.StartsWith('#')) { continue }
+    $parts = $trimmedLine -split '\|', 2
+    if ($parts.Count -ne 2) { continue }
+    $versions = $parts[1] -split '\s+' | Where-Object { $_ }
+    Merge-Pkg "npm" $parts[0] $versions
+}
+
 # IOC artefacts left on disk by the worms
 # NOTE: Linux paths are speculative on Windows hosts (only relevant if WSL or
 # a Linux container ran the malicious package). Windows-native locations are
@@ -200,6 +274,7 @@ foreach ($ioc in $HardcodedIOCs) {
 $IOC_Files   = @(
     "$env:TEMP\pglog",
     "$env:TEMP\.pg_state",
+    "$env:TEMP\inventory.txt",
     # Speculative Windows locations the worm might use
     "$env:APPDATA\sysmon\sysmon.py",
     "$env:LOCALAPPDATA\sysmon\sysmon.py"
@@ -217,7 +292,8 @@ $IOC_Strings = @(
     ('audit.'+'checkmarx.cx'), ('scan.'+'aquasecurtiy.org'),
     ('models.'+'litellm.cloud'),
     ('pgmon.'+'service'), ('.config/'+'pgmon'),
-    ('plain-'+'crypto-js')
+    ('plain-'+'crypto-js'),
+    ('s1ngularity-'+'repository'), ('Shai-'+'Hulud')
 )
 # Generic ICP canister regex -- catches new wave canister IDs the worm rotates to
 $IOC_RegexICP = '[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-' + 'cai\.raw\.icp0\.io'
@@ -542,6 +618,29 @@ foreach ($key in $MaliciousPkgs.Keys) {
     if ($key -like "PyPI:*")   { $PypiTargets[$key.Substring(5)]  = $MaliciousPkgs[$key] }
     if ($key -like "Docker:*") { $DockerTargets[$key.Substring(7)]= $MaliciousPkgs[$key] }
 }
+
+# PyPI package names are case-insensitive and treat -, _, and . as equivalent.
+# Keep a normalized target map whose values are version-set hashtables so both
+# package and version checks are hash lookups.
+$PypiCanonicalTargets = @{}
+$PypiCanonicalNames   = @{}
+foreach ($pkgName in $PypiTargets.Keys) {
+    $canonical = ($pkgName.ToLower() -replace '[-_.]+', '-')
+    if (-not $PypiCanonicalTargets.ContainsKey($canonical)) {
+        $PypiCanonicalTargets[$canonical] = @{ Any = $false; Versions = @{} }
+        $PypiCanonicalNames[$canonical] = $pkgName
+    }
+    if ($PypiTargets[$pkgName] -contains "*") {
+        $PypiCanonicalTargets[$canonical].Any = $true
+        $PypiCanonicalTargets[$canonical].Versions.Clear()
+    } else {
+        if ($PypiCanonicalTargets[$canonical].Any) { continue }
+        foreach ($version in $PypiTargets[$pkgName]) {
+            $trimmedVersion = $version.Trim()
+            if ($trimmedVersion) { $PypiCanonicalTargets[$canonical].Versions[$trimmedVersion] = $true }
+        }
+    }
+}
 Write-Info "IOC breakdown -- npm: $($NpmTargets.Count)  PyPI: $($PypiTargets.Count)  Docker: $($DockerTargets.Count)"
 
 # =============================================================================
@@ -553,6 +652,13 @@ function Test-BadVersion {
     if (-not $Version) { return $false }
     $v = $Version.Trim()
     return ($BadVersions -contains "*") -or ($BadVersions -contains $v)
+}
+
+function Test-BadPypiVersion {
+    param([string]$Version, [hashtable]$Target)
+    if (-not $Version -or -not $Target) { return $false }
+    if ($Target.Any) { return $true }
+    return $Target.Versions.ContainsKey($Version.Trim())
 }
 
 function Get-FileSHA256 {
@@ -584,6 +690,27 @@ function Get-PyPiCanonical {
     return ($Name.ToLower() -replace '[-_.]+', '-')
 }
 
+function Read-DistInfoMetadataFast {
+    param([string]$DistInfoPath)
+    $metadataPath = Join-Path $DistInfoPath "METADATA"
+    if (Test-Path $metadataPath) {
+        try {
+            $name = ""
+            $version = ""
+            foreach ($line in (Get-Content $metadataPath -TotalCount 80 -ErrorAction Stop)) {
+                if (-not $name -and $line -match '^Name:\s*(.+)$') { $name = $matches[1].Trim() }
+                elseif (-not $version -and $line -match '^Version:\s*(.+)$') { $version = $matches[1].Trim() }
+                if ($name -and $version) { return @{ Name = $name; Version = $version } }
+            }
+        } catch { }
+    }
+
+    if ((Split-Path $DistInfoPath -Leaf) -match '^(?<name>.+)-(?<version>[^-]+)\.dist-info$') {
+        return @{ Name = $matches['name']; Version = $matches['version'] }
+    }
+    return $null
+}
+
 # Get-ChildItem wrapper that filters reparse points (junctions to other users'
 # profiles, mounted drives, etc.) to avoid double-scanning.
 function Get-ChildItemSafe {
@@ -593,11 +720,16 @@ function Get-ChildItemSafe {
                   -Attributes !ReparsePoint
 }
 
-# Common search roots -- wrapped in @() so $null doesn't propagate as scalar
+# Common search roots -- wrapped in @() so $null doesn't propagate as scalar.
+# If the user is C:\Users\mike, scan C:\Users. Also scan common package/tool
+# locations on the system drive without recursively walking the whole drive.
+$SystemDrive = if ($env:SystemDrive) { $env:SystemDrive } else { 'C:' }
 $SearchRoots = @(@(
     $env:USERPROFILE,$env:APPDATA,$env:LOCALAPPDATA,
-    "C:\Users","C:\Program Files","C:\Program Files (x86)",
-    "C:\src","C:\code","C:\projects","C:\dev","C:\workspace","C:\tools","C:\opt"
+    "${SystemDrive}\Users","${SystemDrive}\Program Files","${SystemDrive}\Program Files (x86)",
+    "${SystemDrive}\ProgramData","${SystemDrive}\src","${SystemDrive}\code",
+    "${SystemDrive}\projects","${SystemDrive}\dev","${SystemDrive}\workspace",
+    "${SystemDrive}\tools","${SystemDrive}\opt"
 ) | Where-Object { $_ -and (Test-Path $_) } | Sort-Object -Unique)
 
 # Python-only roots for narrower dist-info / .pth scans (vs. global SearchRoots)
@@ -605,13 +737,35 @@ $PythonRoots = @(@(
     "$env:LOCALAPPDATA\Programs\Python",
     "$env:APPDATA\Python",
     "$env:LOCALAPPDATA\uv",
-    "C:\Python*",
-    "C:\Users\*\AppData\Local\Programs\Python",
-    "C:\Users\*\AppData\Local\uv",
-    "C:\ProgramData\Anaconda3","C:\ProgramData\miniconda3",
-    "C:\tools\miniconda3","C:\tools\Anaconda3"
+    "${SystemDrive}\Python*",
+    "${SystemDrive}\Users\*\AppData\Local\Programs\Python",
+    "${SystemDrive}\Users\*\AppData\Local\uv",
+    "${SystemDrive}\ProgramData\Anaconda3","${SystemDrive}\ProgramData\miniconda3",
+    "${SystemDrive}\tools\miniconda3","${SystemDrive}\tools\Anaconda3"
 ) | ForEach-Object { Resolve-Path $_ -ErrorAction SilentlyContinue } |
     ForEach-Object { $_.Path } | Where-Object { $_ } | Sort-Object -Unique)
+
+Write-Info "Discovering Python venv/site-packages roots under: $($SearchRoots -join ', ')"
+$DiscoveredPythonRoots = @(foreach ($root in $SearchRoots) {
+    Get-ChildItemSafe -Path $root -Filter "pyvenv.cfg" -Depth 8 |
+        Where-Object { $_.FullName -notmatch '\\(node_modules|\.git)\\' } |
+        ForEach-Object { $_.DirectoryName }
+    Get-ChildItemSafe -Path $root -Filter "site-packages" -Depth 10 |
+        Where-Object { $_.PSIsContainer -and $_.FullName -notmatch '\\(node_modules|\.git)\\' } |
+        ForEach-Object { $_.FullName }
+})
+$PythonRoots = @(($PythonRoots + $DiscoveredPythonRoots) |
+    Where-Object { $_ -and (Test-Path $_) } |
+    Sort-Object -Unique)
+Write-Info "  Python scan roots: $($PythonRoots.Count)"
+
+function Write-ScanPaths {
+    Write-Header "LOCAL SCAN PATHS"
+    Write-Info "npm / filesystem roots ($($SearchRoots.Count)):"
+    foreach ($path in $SearchRoots) { Write-Host "  - $path" }
+    Write-Info "Python venv/site-packages roots ($($PythonRoots.Count)):"
+    foreach ($path in $PythonRoots) { Write-Host "  - $path" }
+}
 
 # =============================================================================
 #  SECTION 3 -- IOC FILE / PERSISTENCE CHECK
@@ -623,6 +777,7 @@ Write-Host "|  Now scanning this system against the IOC list collected above   |
 Write-Host "|  Any [MATCH] lines from this point forward indicate findings on  |" -ForegroundColor Cyan
 Write-Host "|  YOUR system, not just IOC list contents.                        |" -ForegroundColor Cyan
 Write-Host "+==================================================================+" -ForegroundColor Cyan
+Write-ScanPaths
 
 Write-Header "IOC FILES AND PERSISTENCE ARTEFACTS"
 foreach ($f in $IOC_Files) {
@@ -689,57 +844,70 @@ foreach ($root in $SearchRoots) {
 # =============================================================================
 
 Write-Header "PyPI PACKAGE SCAN  ($($PypiTargets.Count) packages in IOC list)"
-foreach ($pkgName in $PypiTargets.Keys) {
-    $badVers = $PypiTargets[$pkgName]
+Write-Info "Building installed PyPI package inventory..."
+$PypiInstalled = @{}
 
-    # 5a. pip show -- FIXED parsing (was matching on Select-String result obj)
-    $pipOut = pip show $pkgName 2>$null
-    if ($pipOut) {
-        # $pipOut may be a string or string array depending on PS version; normalize
-        $lines = if ($pipOut -is [string]) { $pipOut -split "`n" } else { $pipOut }
-        $verLine = $lines | Where-Object { $_ -match '^Version:\s*(.+)$' } | Select-Object -First 1
-        $ver = ""
-        if ($verLine -and $verLine -match '^Version:\s*(.+)$') {
-            $ver = $matches[1].Trim()
-        }
-        if ($ver) {
-            $script:Scanned++
-            if (Test-BadVersion $ver $badVers) {
-                Write-Hit "PyPI (pip): $pkgName==$ver -- MALICIOUS!"
-            } else {
-                Write-OK  "PyPI (pip): $pkgName==$ver -- OK"
-            }
+$pipAvailable = $null -ne (Get-Command pip -ErrorAction SilentlyContinue)
+if ($pipAvailable) {
+    Write-Info "  Reading active pip environment with 'pip list --format=freeze'..."
+    $pipOut = pip list --format=freeze 2>$null
+    $pipLines = if ($pipOut -is [string]) { $pipOut -split "`r?`n" } else { @($pipOut) }
+    $pipCount = 0
+    foreach ($line in $pipLines) {
+        if ($line -notmatch '^([^=\s]+)==(.+)$') { continue }
+        $name = $matches[1].Trim()
+        $version = $matches[2].Trim()
+        if (-not $name -or -not $version) { continue }
+        $canonical = Get-PyPiCanonical $name
+        $recordKey = "pip|$canonical|$version"
+        if (-not $PypiInstalled.ContainsKey($recordKey)) {
+            $PypiInstalled[$recordKey] = @{ Name = $name; Version = $version; Source = "active pip environment" }
+            $pipCount++
         }
     }
+    Write-Info "  Active pip inventory: $pipCount package(s)."
+} else {
+    Write-Warn "  pip command not found; using .dist-info filesystem inventory only."
+}
 
-    # 5b. .dist-info directories -- FIXED regex (PEP 503 normalisation, hyphen versions)
-    $pkgCanonical = Get-PyPiCanonical $pkgName
-    foreach ($base in $PythonRoots) {
-        # Build a regex that matches both hyphen and underscore variants in
-        # the package name part of the dist-info directory. Split on hyphen,
-        # regex-escape each piece, rejoin with [-_]. This pattern accepts either
-        # hyphen or underscore between hyphen-separated tokens of the canonical name.
-        $parts        = $pkgCanonical -split '-'
-        $escapedParts = $parts | ForEach-Object { [regex]::Escape($_) }
-        $namePattern  = $escapedParts -join '[-_]'
-        $distInfoRegex = "^(?<n>$namePattern)-(?<ver>[^-].*)\.dist-info$"
-
-        Get-ChildItemSafe -Path $base -Filter "*.dist-info" -Depth 10 |
-        Where-Object { $_.PSIsContainer -and ($_.Name.ToLower() -match $distInfoRegex) } |
-        Select-Object -First 5 |
-        ForEach-Object {
-            if ($_.Name.ToLower() -match $distInfoRegex) {
-                $ver = $matches['ver']
-                $script:Scanned++
-                if (Test-BadVersion $ver $badVers) {
-                    Write-Hit "PyPI dist-info: $pkgName==$ver -- MALICIOUS at $($_.FullName)"
-                } else {
-                    Write-OK "PyPI dist-info: $pkgName==$ver -- OK"
-                }
-            }
+Write-Info "  Collecting .dist-info directories under $($PythonRoots.Count) Python root(s)..."
+$distInfoCount = 0
+$rootIndex = 0
+foreach ($base in $PythonRoots) {
+    $rootIndex++
+    if (-not (Test-Path $base)) { continue }
+    Write-Info "    [$rootIndex/$($PythonRoots.Count)] $base"
+    Get-ChildItemSafe -Path $base -Filter "*.dist-info" -Depth 10 |
+    Where-Object { $_.PSIsContainer } |
+    ForEach-Object {
+        $metadata = Read-DistInfoMetadataFast $_.FullName
+        if (-not $metadata -or -not $metadata.Name -or -not $metadata.Version) { return }
+        $canonical = Get-PyPiCanonical $metadata.Name
+        $recordKey = "dist|$canonical|$($metadata.Version)|$($_.FullName)"
+        if (-not $PypiInstalled.ContainsKey($recordKey)) {
+            $PypiInstalled[$recordKey] = @{ Name = $metadata.Name; Version = $metadata.Version; Source = $_.FullName }
+            $distInfoCount++
         }
     }
 }
+Write-Info "  .dist-info inventory: $distInfoCount package record(s)."
+Write-Info "Cross-checking $($PypiInstalled.Count) installed PyPI package record(s) against $($PypiCanonicalTargets.Count) normalized IOC package name(s)..."
+
+$pyMatches = 0
+foreach ($record in $PypiInstalled.Values) {
+    $canonical = Get-PyPiCanonical $record.Name
+    if (-not $PypiCanonicalTargets.ContainsKey($canonical)) { continue }
+    $script:Scanned++
+    $displayName = $PypiCanonicalNames[$canonical]
+    $version = [string]$record.Version
+    if (Test-BadPypiVersion $version $PypiCanonicalTargets[$canonical]) {
+        Write-Hit "PyPI: $($record.Name)==$version -- MALICIOUS at $($record.Source)"
+        $pyMatches++
+    } else {
+        Write-OK "PyPI: $($record.Name)==$version -- OK (matched IOC package '$displayName')"
+    }
+}
+Write-Info "PyPI scan complete: $($PypiInstalled.Count) installed package record(s), $pyMatches malicious version match(es)."
 
 # =============================================================================
 #  SECTION 6 -- DOCKER SCAN
@@ -917,43 +1085,60 @@ foreach ($iocScript in $IOC_Scripts) {
 }
 
 Write-Header "IOC STRING SEARCH"
-# Include bare .env / .npmrc as well as wildcard-prefixed variants
-$scanExtensions = @("*.js","*.cjs","*.mjs","*.py","*.json",
-                    "*.npmrc",".npmrc","*.env",".env",
-                    "*.sh","*.yaml","*.yml")
-                    
+$scanExtensions = @{
+    ".js" = $true; ".cjs" = $true; ".mjs" = $true; ".py" = $true; ".json" = $true
+    ".npmrc" = $true; ".env" = $true; ".sh" = $true; ".yaml" = $true; ".yml" = $true
+}
+$scanExactNames = @{ ".npmrc" = $true; ".env" = $true }
+$maxTextScanBytes = 2MB
 $escapedIocStrings = $IOC_Strings | ForEach-Object { [regex]::Escape($_) }
 $IOC_CombinedRegex = "(?i)(" + ($escapedIocStrings -join "|") + ")"
-Write-Info "  Searching all IOC strings in one pass..."
+Write-Info "  Collecting candidate text files once per root (max $([int]($maxTextScanBytes / 1MB)) MB each)..."
 $script:Scanned++
-foreach ($root in $SearchRoots) {
-    foreach ($ext in $scanExtensions) {
-        Get-ChildItemSafe -Path $root -Filter $ext -Depth 12 |
-        Where-Object { 
-            $_.FullName -notmatch '(?i)[\\/](Code[\\/]User[\\/](History|workspaceStorage)|node_modules|test-logs|\.git|\.vscode)[\\/]' -and
-            $_.Name -notmatch '^(?i)(scan-supply-chain\.sh|Scan-SupplyChain\.ps1)$'
-        } |
-        Select-String -Pattern $IOC_CombinedRegex -ErrorAction SilentlyContinue |
-        Select-Object -First 20 |
-        ForEach-Object { Write-Hit "IOC '$($_.Matches[0].Value)' in: $($_.Path)" }
-    }
-}
 
-# Generic ICP canister regex catches new IDs the worm rotates to
-Write-Info "  Regex: ICP canister exfil URLs"
-$script:Scanned++
+$textCandidates = New-Object System.Collections.Generic.List[object]
+$seenTextCandidatePaths = @{}
 foreach ($root in $SearchRoots) {
-    foreach ($ext in @("*.js","*.cjs","*.mjs","*.py","*.json")) {
-        Get-ChildItemSafe -Path $root -Filter $ext -Depth 12 |
-        Where-Object { 
-            $_.FullName -notmatch '(?i)[\\/](Code[\\/]User[\\/](History|workspaceStorage)|node_modules|test-logs|\.git|\.vscode)[\\/]' -and
-            $_.Name -notmatch '^(?i)(scan-supply-chain\.sh|Scan-SupplyChain\.ps1)$'
-        } |
-        Select-String -Pattern $IOC_RegexICP -ErrorAction SilentlyContinue |
-        Select-Object -First 5 |
-        ForEach-Object { Write-Hit "ICP canister exfil URL pattern in: $($_.Path)" }
+    Write-Info "    Inventorying text candidates under $root"
+    $rootCount = 0
+    Get-ChildItemSafe -Path $root -Filter "*" -Depth 12 |
+    Where-Object {
+        -not $_.PSIsContainer -and
+        $_.Length -le $maxTextScanBytes -and
+        ($scanExtensions.ContainsKey($_.Extension.ToLower()) -or $scanExactNames.ContainsKey($_.Name.ToLower())) -and
+        $_.FullName -notmatch '(?i)[\/](Code[\/]User[\/](History|workspaceStorage)|node_modules|test-logs|\.git|\.vscode|\.cache|__pycache__|dist|build|coverage)[\/]' -and
+        $_.Name -notmatch '^(?i)(scan-supply-chain\.sh|Scan-SupplyChain\.ps1)$'
+    } |
+    ForEach-Object {
+        if (-not $seenTextCandidatePaths.ContainsKey($_.FullName)) {
+            $seenTextCandidatePaths[$_.FullName] = $true
+            $textCandidates.Add($_) | Out-Null
+            $rootCount++
+        }
+    }
+    Write-Info "      $rootCount candidate file(s)."
+}
+Write-Info "  Searching $($textCandidates.Count) candidate file(s) for IOC strings and ICP URLs..."
+
+$iocStringHits = 0
+$icpHits = 0
+$checkedTextFiles = 0
+foreach ($file in $textCandidates) {
+    $checkedTextFiles++
+    if ($checkedTextFiles % 500 -eq 0) { Write-Info "    Checked $checkedTextFiles/$($textCandidates.Count) text file(s)..." }
+    Select-String -Path $file.FullName -Pattern @($IOC_CombinedRegex, $IOC_RegexICP) -ErrorAction SilentlyContinue |
+    ForEach-Object {
+        $matchValue = $_.Matches[0].Value
+        if ($matchValue -match $IOC_RegexICP) {
+            if ($icpHits -lt 5) { Write-Hit "ICP canister exfil URL pattern in: $($_.Path)" }
+            $icpHits++
+        } else {
+            if ($iocStringHits -lt 20) { Write-Hit "IOC '$matchValue' in: $($_.Path)" }
+            $iocStringHits++
+        }
     }
 }
+Write-Info "  IOC string search complete: $checkedTextFiles file(s) checked, $iocStringHits IOC string hit(s), $icpHits ICP URL hit(s)."
 
 Write-Header "IOC FILE HASH CHECK"
 foreach ($root in $SearchRoots) {

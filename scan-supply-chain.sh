@@ -123,6 +123,75 @@ is_bad_version() {
 #  SECTION 1 — HARDCODED IOC LIST
 # ══════════════════════════════════════════════════════════════════════════════
 
+# ── S1ngularity / Nx (August 26 2025) ───────────────────────────────────────
+# Malicious npm releases used postinstall hooks to collect secrets and publish
+# them into attacker-created GitHub repos named with "s1ngularity-repository".
+merge_pkg "npm" "nx" "21.5.0" "20.9.0" "20.10.0" "21.6.0" "20.11.0" "21.7.0" "21.8.0" "20.12.0"
+for pkg in "@nx/devkit" "@nx/js" "@nx/workspace" "@nx/node"; do
+    merge_pkg "npm" "$pkg" "21.5.0" "20.9.0"
+done
+merge_pkg "npm" "@nx/eslint" "21.5.0"
+merge_pkg "npm" "@nx/key" "3.2.0"
+merge_pkg "npm" "@nx/enterprise-cloud" "3.2.0"
+
+# ── September 2025 npm crypto-theft + Shai-Hulud worm wave ──────────────────
+# Curated high-signal subset of the CISA/Mend/Socket-reported npm incidents:
+# massively downloaded packages, CrowdStrike packages, @ctrl/tinycolor family,
+# and commonly observed Angular / NativeScript victims. Live feeds cover the
+# long tail; this keeps offline mode useful without embedding a giant feed dump.
+while IFS='|' read -r pkg versions; do
+    [[ -z "$pkg" || "$pkg" == \#* ]] && continue
+    merge_pkg "npm" "$pkg" $versions
+done <<'EOF'
+ansi-styles|6.2.2
+backslash|0.2.1
+chalk|5.6.1
+chalk-template|1.1.1
+color-convert|3.1.1
+color-name|2.0.1
+color-string|2.1.1
+debug|4.4.2
+error-ex|1.3.3
+has-ansi|6.0.1
+is-arrayish|0.3.3
+proto-tinker-wc|0.1.87
+simple-swizzle|0.2.3
+slice-ansi|7.1.1
+strip-ansi|7.1.1
+supports-color|10.2.1
+supports-hyperlinks|4.1.1
+wrap-ansi|9.0.1
+@ahmedhfarag/ngx-perfect-scrollbar|20.0.20
+@ahmedhfarag/ngx-virtual-scroller|4.0.4
+@crowdstrike/commitlint|8.1.1 8.1.2
+@crowdstrike/falcon-shoelace|0.4.1 0.4.2
+@crowdstrike/foundry-js|0.19.1 0.19.2
+@crowdstrike/glide-core|0.34.2 0.34.3
+@crowdstrike/logscale-dashboard|1.205.1 1.205.2
+@crowdstrike/logscale-file-editor|1.205.1 1.205.2
+@crowdstrike/logscale-parser-edit|1.205.1 1.205.2
+@crowdstrike/logscale-search|1.205.1 1.205.2
+@crowdstrike/tailwind-toucan-base|5.0.1 5.0.2
+@ctrl/deluge|1.2.0 7.2.1 7.2.2
+@ctrl/golang-template|1.4.2 1.4.3
+@ctrl/magnet-link|4.0.3 4.0.4
+@ctrl/ngx-codemirror|7.0.1 7.0.2
+@ctrl/ngx-csv|6.0.1 6.0.2
+@ctrl/ngx-emoji-mart|9.2.1 9.2.2
+@ctrl/ngx-rightclick|4.0.1 4.0.2
+@ctrl/qbittorrent|9.7.1 9.7.2
+@ctrl/react-adsense|2.0.1 2.0.2
+@ctrl/shared-torrent|6.3.1 6.3.2
+@ctrl/tinycolor|4.1.1 4.1.2
+@ctrl/torrent-file|4.1.1 4.1.2
+@ctrl/transmission|7.3.1
+@ctrl/ts-base32|4.0.1 4.0.2
+angulartics2|14.1.1 14.1.2
+ng2-file-upload|7.0.2 7.0.3 8.0.1 8.0.2 8.0.3 9.0.1
+ngx-bootstrap|18.1.4 19.0.3 19.0.4 20.0.3 20.0.4 20.0.5 20.0.6
+ngx-toastr|19.0.1 19.0.2
+EOF
+
 # ── CanisterWorm (TeamPCP, March 20-23 2026) ─────────────────────────────────
 # NOTE: This is the initial Socket disclosure list (30 packages).
 # JFrog later identified 47+ packages in total. Live feed (OpenSSF/OSV)
@@ -178,7 +247,7 @@ merge_pkg "PyPI" "xinference" "2.6.0" "2.6.1" "2.6.2"
 merge_pkg "Docker" "checkmarx/kics" "*"
 
 # ── IOC artefacts ────────────────────────────────────────────────────────────
-IOC_FILES=("/tmp/pglog" "/tmp/.pg_state" "${HOME}/.config/sysmon/sysmon.py")
+IOC_FILES=("/tmp/pglog" "/tmp/.pg_state" "/tmp/inventory.txt" "${HOME}/.config/sysmon/sysmon.py")
 IOC_SCRIPTS=("env-compat.cjs" "public.pem" "sysmon.py" "litellm_init.pth")
 # More-specific IOC strings (avoid bare "pgmon" -> matches PostgreSQL pg_monitor role).
 # Each string is paired with a regex-anchored variant to cut FPs.
@@ -193,6 +262,8 @@ IOC_STRINGS=(
     "pgmon.""service"
     ".config/""pgmon"
     "plain-""crypto-js"
+    "s1ngularity-""repository"
+    "Shai-""Hulud"
 )
 # Generic ICP canister regex — catches new wave canister IDs the worm may rotate to.
 IOC_REGEX_ICP='[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-'"cai\.raw\.icp0\.io"
@@ -545,15 +616,53 @@ log "Breakdown — npm: ${#NPM_PKGS[@]}  PyPI: ${#PYPI_PKGS[@]}  Docker: ${#DOCK
 #  SECTION 3 — IOC FILE / PERSISTENCE CHECK
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Define search roots ONCE — used everywhere instead of `find /`.
-SEARCH_ROOTS=("/home" "/root" "/opt" "/srv" "/app" "/workspace" "/usr/local" "/var/www")
-PYTHON_ROOTS=(
-    "/usr/lib/python3" "/usr/lib/python3.10" "/usr/lib/python3.11" "/usr/lib/python3.12"
-    "/usr/local/lib/python3.10" "/usr/local/lib/python3.11" "/usr/local/lib/python3.12"
-    "/opt/conda" "/opt/anaconda3" "/opt/miniconda3"
-    "${HOME}/.local/lib" "/root/.local/lib"
-    "${HOME}/.cache/uv" "/root/.cache/uv"
-)
+# Define search roots ONCE — broad enough for normal local installs, but still
+# bounded to home/system package locations instead of blindly walking `/`.
+SEARCH_ROOTS=()
+PYTHON_ROOTS=()
+
+add_search_root() {
+    local root="$1" existing
+    [[ -d "$root" ]] || return
+    for existing in "${SEARCH_ROOTS[@]:-}"; do
+        [[ "$existing" == "$root" ]] && return
+    done
+    SEARCH_ROOTS+=("$root")
+}
+
+add_python_root() {
+    local root="$1" existing
+    [[ -d "$root" ]] || return
+    for existing in "${PYTHON_ROOTS[@]:-}"; do
+        [[ "$existing" == "$root" ]] && return
+    done
+    PYTHON_ROOTS+=("$root")
+}
+
+# If the user is /home/mike, scan /home. If their home is elsewhere, scan that
+# parent directory. Also include common package install locations on `/`.
+if [[ "${HOME:-}" == /home/* ]]; then
+    add_search_root "/home"
+elif [[ -n "${HOME:-}" ]]; then
+    add_search_root "$(dirname "$HOME")"
+fi
+add_search_root "/root"
+add_search_root "/usr"
+add_search_root "/usr/local"
+add_search_root "/opt"
+add_search_root "/srv"
+add_search_root "/app"
+add_search_root "/workspace"
+add_search_root "/var/www"
+add_search_root "/var/lib"
+
+for proot in \
+    /usr/lib/python3 /usr/lib/python3.* /usr/local/lib/python3.* \
+    /opt/conda /opt/anaconda3 /opt/miniconda3 \
+    "${HOME}/.local/lib" /root/.local/lib \
+    "${HOME}/.cache/uv" /root/.cache/uv; do
+    add_python_root "$proot"
+done
 # Pseudo-FS prune list (don't descend into these)
 PRUNE_DIRS=(/proc /sys /dev /run /var/run /tmp/.dockerenv)
 
@@ -573,12 +682,45 @@ build_prune_expr() {
 }
 build_prune_expr
 
+discover_python_roots() {
+    local root found
+    log "Discovering Python venv/site-packages roots under: ${SEARCH_ROOTS[*]}"
+    for root in "${SEARCH_ROOTS[@]}"; do
+        [[ -d "$root" ]] || continue
+        while IFS= read -r -d '' found; do
+            if [[ "$(basename "$found")" == "pyvenv.cfg" ]]; then
+                add_python_root "$(dirname "$found")"
+            else
+                add_python_root "$found"
+            fi
+        done < <(find "$root" -xdev -maxdepth 8 \( "${PRUNE_EXPR[@]}" \) -prune -o \
+                      \( -name "node_modules" -o -name ".git" -o -name ".cache" \) -type d -prune -o \
+                      \( -name "pyvenv.cfg" -type f -o -name "site-packages" -type d \) -print0 2>/dev/null || true)
+    done
+    log "  Python scan roots: ${#PYTHON_ROOTS[@]}"
+}
+discover_python_roots
+
+print_scan_paths() {
+    local path
+    header "LOCAL SCAN PATHS"
+    log "npm / filesystem roots (${#SEARCH_ROOTS[@]}):"
+    for path in "${SEARCH_ROOTS[@]}"; do
+        echo "  - $path"
+    done
+    log "Python venv/site-packages roots (${#PYTHON_ROOTS[@]}):"
+    for path in "${PYTHON_ROOTS[@]}"; do
+        echo "  - $path"
+    done
+}
+
 echo ""
 echo -e "${BOLD}${CYAN}+==================================================================+${RESET}"
 echo -e "${BOLD}${CYAN}|  Now scanning this system against the IOC list collected above   |${RESET}"
 echo -e "${BOLD}${CYAN}|  Any [MATCH] lines from this point forward indicate findings on  |${RESET}"
 echo -e "${BOLD}${CYAN}|  YOUR system, not just IOC list contents.                        |${RESET}"
 echo -e "${BOLD}${CYAN}+==================================================================+${RESET}"
+print_scan_paths
 
 header "IOC FILES AND PERSISTENCE ARTEFACTS"
 for f in "${IOC_FILES[@]}"; do
@@ -610,7 +752,7 @@ for proot in "${PYTHON_ROOTS[@]}"; do
     [[ -d "$proot" ]] || continue
     while IFS= read -r pth_path; do
         [[ -n "$pth_path" ]] && hit "LiteLLM .pth persistence: $pth_path"
-    done < <(find "$proot" -maxdepth 8 -name "litellm_init.pth" 2>/dev/null | head -10 || true)
+    done < <(find "$proot" -xdev -maxdepth 8 -name "litellm_init.pth" 2>/dev/null | head -10 || true)
 done
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -669,7 +811,7 @@ for root in "${SEARCH_ROOTS[@]}"; do
         # Skip double-nested node_modules
         [[ "$pj" == */node_modules/*/node_modules/* ]] && continue
         PJSON_FILES+=("$pj")
-    done < <(find "$root" -maxdepth 12 \( "${PRUNE_EXPR[@]}" \) -prune -o \
+    done < <(find "$root" -xdev -maxdepth 12 \( "${PRUNE_EXPR[@]}" \) -prune -o \
                           -name "package.json" -type f -print0 2>/dev/null || true)
 done
 log "  Found ${#PJSON_FILES[@]} package.json files."
@@ -687,7 +829,7 @@ for root in "${SEARCH_ROOTS[@]}"; do
         if grep -lE 'plain-crypto-js|"axios": "1\.14\.1"|"axios": "0\.30\.4"' "$lf" 2>/dev/null >/dev/null; then
             hit "Lock file contains malicious Axios/plain-crypto-js: $lf"
         fi
-    done < <(find "$root" -maxdepth 10 \( "${PRUNE_EXPR[@]}" \) -prune -o \
+    done < <(find "$root" -xdev -maxdepth 10 \( "${PRUNE_EXPR[@]}" \) -prune -o \
                   \( -name "package-lock.json" -o -name "yarn.lock" \) -type f -print0 2>/dev/null || true)
 done
 
@@ -751,7 +893,7 @@ PY
             else
                 ok "PyPI dist-info: ${pkgname}==${ver} — version OK"
             fi
-        done < <(find "$proot" -maxdepth 10 -type d -name "*.dist-info" 2>/dev/null \
+        done < <(find "$proot" -xdev -maxdepth 10 -type d -name "*.dist-info" 2>/dev/null \
                  | grep -iE "/${pkg_canonical//-/[-_.]}-[^/]+\.dist-info$" 2>/dev/null \
                  | head -10 || true)
     done
